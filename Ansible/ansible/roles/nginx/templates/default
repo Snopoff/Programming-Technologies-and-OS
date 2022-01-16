@@ -1,0 +1,13 @@
+server {
+        listen 80 default_server;
+        listen [::]:80 default_server;
+        server_name _;
+        location / {
+                try_files $uri $uri/ =404;
+        }
+
+        location /service_data {
+                alias /opt/service_state;
+        }
+
+}

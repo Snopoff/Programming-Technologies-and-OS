@@ -1,0 +1,111 @@
+---
+# tasks file for nginx
+
+  - name: install_nginx
+    apt: 
+      name: nginx
+      state: latest
+    register: first_run
+
+  - name: install_pip
+    become: yes
+    when: first_run.changed
+    apt:
+      name: python3-pip
+      state: latest
+    register: pip_is_installed
+
+  - name: copy_the_nginx_config_file_and_restart_nginx
+    template: src=default dest=/etc/nginx/sites-available/default
+    become: yes
+    register: nginx_conf_copy
+
+  - name: check_and_restart
+    become: yes
+    when: nginx_conf_copy.changed
+    shell: /usr/sbin/nginx -t
+    notify:
+      - Nginx restart
+    
+  - name: install_cron
+    when: pip_is_installed.changed
+    become: yes
+    command: pip3 install python-crontab
+
+  - name: get_md5_of_prev_file
+    become: yes
+    command: cat ~/ansible/ansible/roles/nginx/vars/md5prev
+    delegate_to: 127.0.0.1
+    become_user: tpo2021132
+    register: md5_of_prev_file
+    changed_when: False
+
+  - name: create_md5_prev
+    when: first_run.changed
+    become: yes
+    shell: md5sum ~/ansible/ansible/roles/nginx/files/service_state > ~/ansible/ansible/roles/nginx/vars/md5prev
+    delegate_to: 127.0.0.1
+    become_user: tpo2021132
+
+  - name: get_md5_of_current_file
+    become: yes
+    command: md5sum ~/ansible/ansible/roles/nginx/files/service_state
+    delegate_to: 127.0.0.1
+    become_user: tpo2021132
+    register: md5_of_file
+    changed_when: md5_of_file.stdout != md5_of_prev_file.stdout
+  
+  - name: copy_to_prev_file
+    when: md5_of_file != md5_of_prev_file 
+    become: yes
+    shell: md5sum ~/ansible/ansible/roles/nginx/files/service_state > ~/ansible/ansible/roles/nginx/vars/md5prev
+    delegate_to: 127.0.0.1
+    become_user: tpo2021132
+    changed_when: False
+
+  - name: copy_service_state
+    when: md5_of_file.stdout != md5_of_prev_file.stdout or first_run.changed
+    copy: src=../files/service_state dest=/opt/
+    become: yes
+    notify:
+      - Nginx restart
+    register: service_state_copied
+
+  - name: copy_cron_script
+    copy: src=../files/cron.py dest=/tmp/
+    become: yes
+
+  - name: run_cron_script
+    when: md5_of_file.stdout != md5_of_prev_file.stdout or first_run.changed
+    become: yes
+    command: python3 /tmp/cron.py
+
+  - name: create_file_for_storing_real_first_line
+    when: first_run.changed
+    become: yes
+    command: touch /home/vagrant/first_line
+
+  - name: save_real_first_line
+    become: yes
+    when: service_state_copied.changed
+    shell: head -n 1 /opt/service_state > /home/vagrant/first_line
+
+  - name: get_first_line
+    become: yes
+    command: grep -m1 "" /opt/service_state
+    register: first_line
+    changed_when: False
+
+  - name: get_real_first_line
+    become: yes
+    command: grep -m1 "" /home/vagrant/first_line
+    register: real_first_line
+    changed_when: False
+
+  - name: first_line_is_changed
+    when: first_line.stdout != real_first_line.stdout
+    become: yes
+    replace:
+      path: /opt/service_state
+      regexp: '\A.*'
+      replace: '{{ real_first_line.stdout }}'

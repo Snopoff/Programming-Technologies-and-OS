@@ -1,0 +1,52 @@
+version: "3.3"
+
+services:
+  db:
+    image: mysql:latest
+    environment:
+      MYSQL_HOST: "${MYSQL_HOST:-mysql}"
+      MYSQL_USER: "${MYSQL_USER:-user}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-passwd}"
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:-passwd}"
+      MYSQL_DATABASE: "${MYSQL_DATABASE:-hwdocker}"
+    networks:
+      snopov_net:
+        aliases:
+          - mysql
+    healthcheck:
+            test: ["CMD", 'mysqladmin', 'ping', '-h', 'localhost', '-u', 'root', '-p$MYSQL_ROOT_PASSWORD' ]
+    
+  service2:
+    build: ./serv2
+    environment:
+      MYSQL_HOST: "${MYSQL_HOST:-mysql}"
+      MYSQL_USER: "${MYSQL_USER:-user}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-passwd}"
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:-passwd}"
+      MYSQL_DATABASE: "${MYSQL_DATABASE:-hwdocker}"
+    depends_on: 
+      - db
+    networks: 
+      - snopov_net
+    volumes:
+      - ./:/app
+
+  service3:
+    build: ./serv3
+    environment:
+      MYSQL_HOST: "${MYSQL_HOST:-mysql}"
+      MYSQL_USER: "${MYSQL_USER:-user}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-passwd}"
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:-passwd}"
+      MYSQL_DATABASE: "${MYSQL_DATABASE:-hwdocker}"
+    depends_on:
+      - db
+    networks:
+      - snopov_net
+    ports:
+      - "10786:10786"
+
+
+
+networks:
+  snopov_net:

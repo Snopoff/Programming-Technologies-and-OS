@@ -1,0 +1,7 @@
+---
+- name: nginx ubuntu
+  hosts: ubuntu
+  become: yes
+  roles:
+    - nginx
+        
